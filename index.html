@@ -189,7 +189,7 @@
   // PDF Generation
   document.getElementById('downloadPdfBtn').addEventListener('click', async () => {
     const { jsPDF } = window.jspdf;
-    const reportEl = document.getElementById('report');
+   const reportEl = document.body;
     const canvas = await html2canvas(reportEl, { scale: 2 });
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF('p', 'pt', 'a4');
@@ -221,6 +221,36 @@
   updateChart();
   recalcTotals();
   updateMailto();
+        // New PDF generation capturing full page
+    document.getElementById('downloadPdfBtn').addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const { jsPDF } = window.jspdf;
+      const bodyEl = document.body;
+      const canvas = await html2canvas(bodyEl, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'pt', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const availableWidth = pdfWidth - margin * 2;
+      const availableHeight = pdfHeight - margin * 2;
+      const ratio = Math.min(availableWidth / canvas.width, availableHeight / canvas.height);
+      const imgWidth = canvas.width * ratio;
+      const imgHeight = canvas.height * ratio;
+      const x = margin + (availableWidth - imgWidth) / 2;
+      const y = margin;
+      pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+      pdf.save('proyeccion_costos_helsinki.pdf');
+      // update mailto link after generating pdf
+      const semesterEUR = totalSemesterEURSpan.textContent;
+      const semesterMXN = totalSemesterMXNSpan.textContent;
+      const subject = encodeURIComponent('Proyeccion de gastos para ' + studentName + ' durante ' + months + ' meses en Helsinki.\nTotal semestre: ' + semesterEUR);
+      const bodyTxt = encodeURIComponent('Hola,\n\nAdjunto la proyeccion de gastos para ' + studentName + ' durante ' + months + ' meses en Helsinki.\nTotal semestre: ' + semesterEUR + ' (EUR) / ' + semesterMXN + ' (MXN).');
+      const link = 'mailto:?subject=' + subject + '&body=' + bodyTxt;
+      document.getElementById('mailToLink').setAttribute('href', link);
+    });
+}, tr},truetrue);
 </script>
 </body>
 </html>
