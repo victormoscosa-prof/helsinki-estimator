@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Estimador de costos - Semestre en Helsinki</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <header class="relative">
+    <img src="https://duhocinec.com/wp-content/uploads/2024/10/%C4%90%E1%BA%A1i-h%E1%BB%8Dc-KHUD-Haaga-Helia.jpg" alt="Helsinki" class="w-full h-48 object-cover">
+    <div class="absolute inset-0 bg-black/40 flex flex-col justify-center items-center text-white">
+      <h1 class="text-2xl md:text-4xl font-bold mb-1">Estimador de costos - Semestre en Helsinki</h1>
+      <p class="text-sm md:text-base">Los vuelos están cubiertos por la universidad</p>
+    </div>
+  </header>
+  <main class="max-w-4xl mx-auto p-4 space-y-4">
+    <!-- Formulario de entrada -->
+    <section class="bg-white shadow rounded-xl p-4 space-y-4">
+      <h2 class="text-xl font-semibold">Datos iniciales</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-sm font-medium">Nombre del estudiante</label>
+          <input id="studentName" type="text" class="mt-1 block w-full border rounded p-2" placeholder="Nombre">
+        </div>
+        <div>
+          <label class="block text-sm font-medium">Número de meses</label>
+          <input id="numMonths" type="number" min="1" value="5" class="mt-1 block w-full border rounded p-2">
+        </div>
+        <div>
+          <label class="block text-sm font-medium">Tipo de cambio EUR→MXN</label>
+          <input id="exchangeRate" type="number" step="0.01" value="20" class="mt-1 block w-full border rounded p-2">
+        </div>
+      </div>
+    </section>
+    <!-- Tabla de categorías -->
+    <section class="bg-white shadow rounded-xl p-4 space-y-4">
+      <div class="flex justify-between items-center">
+        <h2 class="text-xl font-semibold">Categorías de gasto</h2>
+        <button id="addCategoryBtn" class="bg-blue-500 text-white px-3 py-1 rounded">Agregar categoría</button>
+      </div>
+      <table id="categoriesTable" class="min-w-full text-left">
+        <thead>
+          <tr>
+            <th class="py-2">Categoría</th>
+            <th class="py-2">Monto (EUR/mes)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="categoriesBody">
+        </tbody>
+      </table>
+    </section>
+    <!-- Resumen y gráfico -->
+    <section id="report" class="bg-white shadow rounded-xl p-4 space-y-4">
+      <h2 class="text-xl font-semibold">Resumen de la proyección</h2>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <canvas id="pieChart"></canvas>
+        </div>
+        <div class="space-y-2">
+          <p><strong>Total mensual (EUR):</strong> <span id="totalMonthEUR">0</span></p>
+          <p><strong>Total semestre (EUR):</strong> <span id="totalSemesterEUR">0</span></p>
+          <p><strong>Total semestre (MXN):</strong> <span id="totalSemesterMXN">0</span></p>
+        </div>
+      </div>
+    </section>
+    <!-- Calculadora de ahorro -->
+    <section class="bg-white shadow rounded-xl p-4 space-y-4">
+      <h2 class="text-xl font-semibold">Calculadora de ahorro</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-sm font-medium">Ahorro inicial (MXN)</label>
+          <input id="initialSavings" type="number" value="0" class="mt-1 block w-full border rounded p-2">
+        </div>
+        <div>
+          <label class="block text-sm font-medium">Meses para ahorrar</label>
+          <input id="saveMonths" type="number" value="8" class="mt-1 block w-full border rounded p-2">
+        </div>
+      </div>
+      <div class="space-y-1">
+        <p><strong>Monto restante por ahorrar (MXN):</strong> <span id="remainingSavings">0</span></p>
+        <p><strong>Debe ahorrar por mes (MXN):</strong> <span id="savePerMonth">0</span></p>
+        <p><strong>Debe ahorrar por quincena (MXN):</strong> <span id="savePerFortnight">0</span></p>
+        <p><strong>Debe ahorrar por semana (MXN):</strong> <span id="savePerWeek">0</span></p>
+      </div>
+    </section>
+    <!-- Botones al final -->
+    <section class="flex flex-wrap gap-4 justify-center p-4">
+      <button id="downloadPdfBtn" class="bg-green-600 text-white px-4 py-2 rounded">Guardar PDF</button>
+      <a id="mailtoLink" href="#" class="bg-purple-600 text-white px-4 py-2 rounded">Redactar correo</a>
+    </section>
+  </main>
+<script type="text/javascript">
+  // Datos iniciales
+  let categories = [
+    { name: "Hospedaje", value: 450 },
+    { name: "Alimentación", value: 350 },
+    { name: "Transporte", value: 160 },
+    { name: "Servicios", value: 200 },
+    { name: "Entretenimiento", value: 200 }
+  ];
+  const categoryColors = [
+    "#0079c2","#00aacd","#67af99","#4c5c68","#8f5e99","#c0585b","#699c69","#cb976c"
+  ];
+  const categoriesBody = document.getElementById('categoriesBody');
+  const totalMonthEURSpan = document.getElementById('totalMonthEUR');
+  const totalSemesterEURSpan = document.getElementById('totalSemesterEUR');
+  const totalSemesterMXNSpan = document.getElementById('totalSemesterMXN');
+  let pieChart;
+  function renderCategories() {
+    categoriesBody.innerHTML = '';
+    categories.forEach((cat, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+      <td><input type="text" value="${cat.name}" class="w-full border rounded p-1" data-index="${idx}" data-type="name"></td>
+      <td><input type="number" value="${cat.value}" class="w-full border rounded p-1" data-index="${idx}" data-type="value"></td>
+      <td><button data-index="${idx}" class="remove-btn text-red-500">X</button></td>
+      `;
+      categoriesBody.appendChild(tr);
+    });
+  }
+  function updateChart() {
+    const labels = categories.map(c => c.name);
+    const data = categories.map(c => c.value);
+    const colors = labels.map((_, idx) => categoryColors[idx % categoryColors.length]);
+    const ctx = document.getElementById('pieChart').getContext('2d');
+    if (pieChart) pieChart.destroy();
+    pieChart = new Chart(ctx, {
+      type: 'pie',
+      data: { labels, datasets: [{ data, backgroundColor: colors }] },
+      options: { plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+  function recalcTotals() {
+    const months = parseInt(document.getElementById('numMonths').value) || 0;
+    const exRate = parseFloat(document.getElementById('exchangeRate').value) || 0;
+    const monthTotal = categories.reduce((sum, c) => sum + parseFloat(c.value || 0), 0);
+    const semesterTotalEUR = monthTotal * months;
+    const semesterTotalMXN = semesterTotalEUR * exRate;
+    totalMonthEURSpan.textContent = monthTotal.toFixed(2);
+    totalSemesterEURSpan.textContent = semesterTotalEUR.toFixed(2);
+    totalSemesterMXNSpan.textContent = semesterTotalMXN.toFixed(2);
+    recalcSavings();
+  }
+  function recalcSavings() {
+    const semesterMXN = parseFloat(totalSemesterMXNSpan.textContent) || 0;
+    const initialSavings = parseFloat(document.getElementById('initialSavings').value) || 0;
+    const saveMonths = parseInt(document.getElementById('saveMonths').value) || 1;
+    const remaining = Math.max(0, semesterMXN - initialSavings);
+    const monthly = remaining / saveMonths;
+    const fortnightly = monthly / 2;
+    const weekly = monthly / 4.345;
+    document.getElementById('remainingSavings').textContent = remaining.toFixed(2);
+    document.getElementById('savePerMonth').textContent = monthly.toFixed(2);
+    document.getElementById('savePerFortnight').textContent = fortnightly.toFixed(2);
+    document.getElementById('savePerWeek').textContent = weekly.toFixed(2);
+  }
+  // Event listeners
+  document.getElementById('addCategoryBtn').addEventListener('click', () => {
+    categories.push({ name: "Nueva categoría", value: 0 });
+    renderCategories();
+    updateChart();
+    recalcTotals();
+  });
+  categoriesBody.addEventListener('input', (e) => {
+    const idx = parseInt(e.target.getAttribute('data-index'));
+    const type = e.target.getAttribute('data-type');
+    if (type === 'name') categories[idx].name = e.target.value;
+    else if (type === 'value') categories[idx].value = parseFloat(e.target.value) || 0;
+    updateChart();
+    recalcTotals();
+  });
+  categoriesBody.addEventListener('click', (e) => {
+    if (e.target.classList.contains('remove-btn')) {
+      const idx = parseInt(e.target.getAttribute('data-index'));
+      categories.splice(idx, 1);
+      renderCategories();
+      updateChart();
+      recalcTotals();
+    }
+  });
+  document.getElementById('numMonths').addEventListener('input', recalcTotals);
+  document.getElementById('exchangeRate').addEventListener('input', recalcTotals);
+  document.getElementById('initialSavings').addEventListener('input', recalcSavings);
+  document.getElementById('saveMonths').addEventListener('input', recalcSavings);
+  // PDF Generation
+  document.getElementById('downloadPdfBtn').addEventListener('click', async () => {
+    const { jsPDF } = window.jspdf;
+    const reportEl = document.getElementById('report');
+    const canvas = await html2canvas(reportEl, { scale: 2 });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'pt', 'a4');
+    const pdfWidth = 595.28;
+    const pdfHeight = 842.89;
+    const imgProps = {
+      w: pdfWidth - 40,
+      h: canvas.height * ((pdfWidth - 40) / canvas.width)
+    };
+    pdf.addImage(imgData, 'PNG', 20, 20, imgProps.w, imgProps.h);
+    pdf.save('proyeccion_costos_helsinki.pdf');
+  });
+  // Mailto link update
+  function updateMailto() {
+    const studentName = document.getElementById('studentName').value;
+    const months = document.getElementById('numMonths').value;
+    const semesterEUR = totalSemesterEURSpan.textContent;
+    const semesterMXN = totalSemesterMXNSpan.textContent;
+    const subject = encodeURIComponent('Proyección de gastos para ' + studentName);
+    const body = encodeURIComponent(`Hola,\n\nAdjunto la proyección de gastos para ${studentName} durante ${months} meses en Helsinki.\nTotal semestre: ${semesterEUR} EUR (${semesterMXN} MXN).\n\nSaludos.`);
+    const link = `mailto:?subject=${subject}&body=${body}`;
+    document.getElementById('mailtoLink').setAttribute('href', link);
+  }
+  document.getElementById('studentName').addEventListener('input', updateMailto);
+  document.getElementById('numMonths').addEventListener('input', updateMailto);
+  document.getElementById('exchangeRate').addEventListener('input', updateMailto);
+  // Inicializar
+  renderCategories();
+  updateChart();
+  recalcTotals();
+  updateMailto();
+</script>
+</body>
+</html>
